@@ -12,7 +12,7 @@ class Camera:
         self.translation = self.position
         
         self.fov = 45  # Field of view in degrees
-        self.aspect = 1.0  # Aspect ratio
+        self.aspect = 1  # Aspect ratio
         self.near = 0.1  # Near clipping plane
         self.far = 50.0  # Far clipping plane
         
@@ -20,6 +20,12 @@ class Camera:
         self.viewport_y = 0
         self.viewport_width = 720
         self.viewport_height = 720
+        
+    # def print_camera_direction(self):
+    #     forward = self.target - self.position
+    #     forward = forward / np.linalg.norm(forward)
+    #     print(f"Camera is looking at: {forward}")
+        
 
     def set_position(self, x, y, z):
         """Establece la posición de la cámara"""

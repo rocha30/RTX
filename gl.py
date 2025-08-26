@@ -3,11 +3,11 @@ import numpy as np
 from math import *
 import random
 import pygame
-
+from Material import *
 
 
 class Renderer ():
-    def __init__(self, screen):
+    def __init__(self, screen, light_pos, light_intensity):
         self.scene = []
         self.screen = screen 
         _,_, self.width, self.height = screen.get_rect()
@@ -21,7 +21,9 @@ class Renderer ():
 
         self.glClear()
 
-        
+
+        self.light_pos = light_pos
+        self.light_intensity = light_intensity
 
     def glViewport(self, x, y, width, height):
         self.vpX = round(x)
@@ -120,43 +122,48 @@ class Renderer ():
                     y-= 1 
                 limit 
 
-    def glRender(self): 
-
+    
+        
+    def glRender(self):
         indices = [(i,j) for i in range(self.vpWidth) for j in range(self.vpHeight)]
         random.shuffle(indices)
         
         for i,j in indices:
             x = i+self.vpX
-            y= j+self.vpY
-            
-        
-                
+            y = j+self.vpY
             if 0 <= x < self.vpWidth and 0 <= y < self.vpHeight:
-                    
                 pX = ((x + 0.5 - self.vpX) / self.vpWidth) * 2 - 1
                 pY = ((y + 0.5 - self.vpY) / self.vpHeight) * 2 - 1
-                    
-                pX *= self.RightEdge 
+                pX *= self.RightEdge
                 pY *= self.topEdge
                 pZ = - self.nearPlane
                 
-                # nomr = (px)    
-                dir = [pX, pY, pZ]
-                dir /= np.linalg.norm(dir)
-                    
-                hit = self.glCastRay(self.camera.translation , dir)
+                dir = np.array([pX, pY, pZ])
+                dir = dir / np.linalg.norm(dir)
 
-                if hit:
-                    self.glPoint(x,y)
+                hit = self.glCastRay(self.camera.translation, dir)
+                if hit is not None:
+                    self.glPoint(x, y)
                     pygame.display.flip()
 
-
-
-
     def glCastRay (self, origin, direction):
-        hit = False
+        closest_t = float('inf')
+        hit_obj = None
+        
         for obj in self.scene:
-            if obj.ray_intersect(origin, direction):
-                hit = True
-                
-        return hit
+            t = obj.ray_intersect(origin, direction)
+            if t and t < closest_t:
+                closest_t = t
+                hit_obj = obj
+
+        if hit_obj:
+            # Calcular la iluminación Phong en el punto de intersección
+            P = origin + direction * closest_t
+            N = hit_obj.get_normal(P)
+            V = -direction/np.linalg.norm(-direction)
+
+            color = hit_obj.material.phong_lighting(P, N, V, self.light_pos, self.light_intensity, hit_obj.material)
+
+            return np.clip(color, 0, 1)
+        else:
+            return np.array([0, 0, 0])

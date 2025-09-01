@@ -1,27 +1,52 @@
 import numpy as np
+from intercept import *
 
-class Material:
-    def __init__(self, ka, kd, ks, shininess, color):
-        self.ka = ka
-        self.kd = kd
+
+class Material(object):
+    def __init__(self, diffuse=[1,1,1], spec=1.0, ks=0):
+        self.diffuse = diffuse
+        self.spec = spec
         self.ks = ks
-        self.shininess = shininess
-        self.color = np.array(color)
+    
+    def GetSurfaceColor(self, intercept, renderer):
+        
+        
+        lightColor = [0, 0, 0]
+        
+        for light in renderer.lights:
+            
+            
+            if light.lightType == "Ambient":
+                # Luz ambiental - simplemente suma su contribución
+                ambientContribution = [light.color[i] * light.intensity for i in range(3)]
+                lightColor = [(lightColor[i] + ambientContribution[i]) for i in range(3)]
+                
+                
+            elif light.lightType == "Directional":  # Cambiado de "Direccional" a "Directional"
+                lightDir = [-i for i in light.direction]
+                shadowIntercept = renderer.glCastRay(intercept.point, lightDir, intercept.obj)
+                
+                if shadowIntercept == None:
+                    # Obtener el color difuso de la luz
+                    diffuseColor = light.GetLightColor(intercept)
+                    lightColor = [(lightColor[i] + diffuseColor[i]) for i in range(3)]
+                    
+                    # Obtener el color especular de la luz
+                    specColor = light.GetSpecularColor(intercept, renderer.camera.translation)
+                    lightColor = [(lightColor[i] + specColor[i]) for i in range(3)]
+                    
+                    
+        
+        # Aplicar el color difuso del material
+        finalColor = [(self.diffuse[i] * lightColor[i] + specColor[i]) for i in range(3)]
+        finalColor = [min(1, finalColor[i]) for i in range(3)]
+        
+        
+        
+        return finalColor
 
 
-    def phong_lighting(P, N, V, light_pos, light_intensity, material):
-
-        L = (light_pos - P) #direccion de la luz menos el punto de interseccion. 
-        L = L / np.linalg.norm(L) #normalizada
-
-        R = 2 * np.dot(N, L) * N - L #reflexion de L respecto a N
-        R = R / np.linalg.norm(R) #normalizada
-
-        ambient = material.ka * light_intensity
-        diffuse = material.kd * light_intensity * max(0, np.dot(N, L))
-        specular = material.ks * light_intensity * (max(0, np.dot(R, V)) ** material.shininess)
-
-        return material.color * (ambient + diffuse + specular)
+red_material = Material(diffuse=[1, 0, 0], spec=32, ks=0.2)
     
 """
 Para el phong se necesita calcular 

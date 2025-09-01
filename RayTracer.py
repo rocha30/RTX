@@ -1,47 +1,50 @@
-import pygame 
-from pygame.locals import *
-from gl import * 
-from figures import *
+import pygame
+import random
+from gl import *
 from BMP_Writer import GenerateBMP
+from figures import *
+from lights import *
+from Material import *
 
+width = 720
+height = 720
 
-width = 256
-height = 256
-
-
+pygame.init()  # Inicializar pygame
 screen = pygame.display.set_mode((width, height), pygame.SCALED)
+pygame.display.set_caption("Ray Tracer")  # Título de la ventana
 clock = pygame.time.Clock()
 
-light_pos = np.array((0, 5, -5))
-light_intensity = 1.0
+rend = Renderer(screen)
+rend.camera.translation = [0, 0, -1]
 
-rend = Renderer(screen, light_pos, light_intensity)
+#Spheres 
+rend.scene.append(Sphere(position=[1, -1, -5], radius=1.0, material = red_material))
+rend.scene.append(Sphere(position=[0, 0, -7], radius=0.5, material = red_material))
 
-red_material = Material(ka=0.1, kd=0.6, ks=0.3, shininess=50, color=(1, 0, 0))
-blue_material = Material(ka=0.1, kd=0.6, ks=0.3, shininess=50, color=(0, 0, 1))
 
-rend.scene.append(Sphere((1, 0, -2), radius=0.5, material=red_material))
-rend.scene.append(Sphere((-1, 0, -3), radius=0.7, material=blue_material))
+# Luces
+rend.lights.append(AmbientLight())
+rend.lights.append(DirectionalLight(direction=[-1, -1, -1]))
+
+
+rend.glRender()
+
+
+pygame.display.flip()
 
 isRunning = True
 while isRunning:
     for event in pygame.event.get():
-        if event.type == QUIT:
+        if event.type == pygame.QUIT:
             isRunning = False
-        elif event.type == KEYDOWN:
-            if event.key == K_ESCAPE:
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
                 isRunning = False
-
-
-
-    rend.glRender()
-    pygame.display.flip()
-
+    
+    # Mover clock.tick dentro del loop
     clock.tick(60)
 
 
 GenerateBMP('output.bmp', width, height, 3, rend.frameBuffer)
 
 pygame.quit()
-
-

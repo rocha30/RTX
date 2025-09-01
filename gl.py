@@ -3,27 +3,23 @@ import numpy as np
 from math import *
 import random
 import pygame
-from Material import *
 
 
 class Renderer ():
-    def __init__(self, screen, light_pos, light_intensity):
-        self.scene = []
-        self.screen = screen 
-        _,_, self.width, self.height = screen.get_rect()
-
-        self.camera = Camera ()
-        self.glViewport( 0, 0, self.width, self.height)
+    def __init__(self, screen):
+        self.screen = screen
+        _, _, self.width, self.height = self.screen.get_rect()
+        self.camera = Camera()
+        self.glViewport(0,0, self.width, self.height)
         self.glProjection()
         self.glColor(1,1,1)
-        
         self.glClearColor(0,0,0)
-
         self.glClear()
+        self.scene = []
+        self.lights = []
+        self.background = None
 
-
-        self.light_pos = light_pos
-        self.light_intensity = light_intensity
+        
 
     def glViewport(self, x, y, width, height):
         self.vpX = round(x)
@@ -125,45 +121,62 @@ class Renderer ():
     
         
     def glRender(self):
-        indices = [(i,j) for i in range(self.vpWidth) for j in range(self.vpHeight)]
+        indices = [(i, j) for i in range(self.vpWidth) for j in range(self.vpHeight)]
         random.shuffle(indices)
-        
-        for i,j in indices:
-            x = i+self.vpX
-            y = j+self.vpY
-            if 0 <= x < self.vpWidth and 0 <= y < self.vpHeight:
-                pX = ((x + 0.5 - self.vpX) / self.vpWidth) * 2 - 1
-                pY = ((y + 0.5 - self.vpY) / self.vpHeight) * 2 - 1
+
+        # Inicializar contadores
+        total_pixels = 0
+        hit_count = 0
+
+
+        for i, j in indices:
+            total_pixels += 1
+            x = i + self.vpX
+            y = j + self.vpY
+
+            # Asegurarse que está dentro de los límites
+            if 0 <= x < self.width and 0 <= y < self.height:
+                # Se envía al centro del pixel (dirección)
+                pX = (x + 0.5 - self.vpX) / self.vpWidth * 2 - 1  # valores de -1 a 1
+                pY = (y + 0.5 - self.vpY) / self.vpHeight * 2 - 1
                 pX *= self.RightEdge
                 pY *= self.topEdge
-                pZ = - self.nearPlane
-                
-                dir = np.array([pX, pY, pZ])
-                dir = dir / np.linalg.norm(dir)
+                pZ = -self.nearPlane
+
+                dir = [pX, pY, pZ]
+                dir /= np.linalg.norm(dir)  # normalizar
 
                 hit = self.glCastRay(self.camera.translation, dir)
-                if hit is not None:
-                    self.glPoint(x, y)
+
+                if hit:
+
+                    if hit.obj.material:
+                        color = hit.obj.material.GetSurfaceColor(hit, self)
+                        self.glPoint(x, y, color)
+
+                # Actualizar pantalla cada 100 pixels para ver progreso
+                if total_pixels % 100 == 0:
                     pygame.display.flip()
 
-    def glCastRay (self, origin, direction):
-        closest_t = float('inf')
-        hit_obj = None
         
+
+        # Pixel de prueba rojo
+        
+
+        pygame.display.flip()
+        
+
+    def glCastRay(self, origin, direction, sceneObj=None):
+        depth = float('inf')
+        hit = None
+
         for obj in self.scene:
-            t = obj.ray_intersect(origin, direction)
-            if t and t < closest_t:
-                closest_t = t
-                hit_obj = obj
+            if obj != sceneObj:
+                intercept = obj.ray_intersect(origin, direction)
+                if intercept is not None and intercept.distance < depth:
+                    hit = intercept
+                    depth = intercept.distance
 
-        if hit_obj:
-            # Calcular la iluminación Phong en el punto de intersección
-            P = origin + direction * closest_t
-            N = hit_obj.get_normal(P)
-            V = -direction/np.linalg.norm(-direction)
-
-            color = hit_obj.material.phong_lighting(P, N, V, self.light_pos, self.light_intensity, hit_obj.material)
-
-            return np.clip(color, 0, 1)
-        else:
-            return np.array([0, 0, 0])
+        return hit
+    
+    

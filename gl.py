@@ -149,33 +149,24 @@ class Renderer ():
                 hit = self.glCastRay(self.camera.translation, dir)
 
                 if hit:
-
                     if hit.obj.material:
-                        color = hit.obj.material.GetSurfaceColor(hit, self)
-                        self.glPoint(x, y, color)
-
-                # Actualizar pantalla cada 100 pixels para ver progreso
-                if total_pixels % 100 == 0:
-                    pygame.display.flip()
-
-        
-
-        # Pixel de prueba rojo
-        
-
-        pygame.display.flip()
-        
+                        self.glPoint(x, y, hit.obj.material.GetSurfaceColor(hit, self))
+                        pygame.display.flip()
+                        
+                        
 
     def glCastRay(self, origin, direction, sceneObj=None):
         depth = float('inf')
+        intercept = None
         hit = None
 
         for obj in self.scene:
             if obj != sceneObj:
                 intercept = obj.ray_intersect(origin, direction)
-                if intercept is not None and intercept.distance < depth:
-                    hit = intercept
-                    depth = intercept.distance
+                if intercept != None:
+                    if intercept.distance < depth:
+                        hit = intercept
+                        depth = intercept.distance
 
         return hit
     

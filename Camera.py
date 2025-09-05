@@ -30,7 +30,7 @@ class Camera:
     def set_position(self, x, y, z):
         """Establece la posición de la cámara"""
         self.position = np.array([x, y, z])
-        self.translation = self.position  # Mantener sincronizado
+        self.translation = -self.position  # Mantener sincronizado
 
     def set_target(self, x, y, z):
         """Establece el objetivo (punto al que mira la cámara)"""

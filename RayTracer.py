@@ -6,31 +6,26 @@ from figures import *
 from lights import *
 from Material import *
 
-width = 720
-height = 720
+width = 100
+height = 100
 
-pygame.init()  # Inicializar pygame
+# pygame.init() 
 screen = pygame.display.set_mode((width, height), pygame.SCALED)
-pygame.display.set_caption("Ray Tracer")  # Título de la ventana
 clock = pygame.time.Clock()
 
 rend = Renderer(screen)
-rend.camera.translation = [0, 0, -1]
+
 
 #Spheres 
 rend.scene.append(Sphere(position=[1, -1, -5], radius=1.0, material = red_material))
-rend.scene.append(Sphere(position=[0, 0, -7], radius=0.5, material = red_material))
+# rend.scene.append(Sphere(position=[0, 0, -7], radius=0.5, material = green_material))
 
 
 # Luces
 rend.lights.append(AmbientLight())
-rend.lights.append(DirectionalLight(direction=[-1, -1, -1]))
+rend.lights.append(DirectionalLight(direction=[-1, -1, -1], intensity = 1))
 
 
-rend.glRender()
-
-
-pygame.display.flip()
 
 isRunning = True
 while isRunning:
@@ -41,7 +36,7 @@ while isRunning:
             if event.key == pygame.K_ESCAPE:
                 isRunning = False
     
-    # Mover clock.tick dentro del loop
+    rend.glRender()
     clock.tick(60)
 
 

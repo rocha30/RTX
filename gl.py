@@ -72,7 +72,6 @@ class Renderer ():
                             for x in range(self.width)]
         
         
-        
     def glEnvMapColor(self, origin, direction):
         if self.envMap:
             #enviroment map 

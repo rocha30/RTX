@@ -78,3 +78,4 @@ def reflectVector(normal, direction):
     reflect = np.subtract(reflect, direction)
     reflect /= np.linalg.norm(reflect)
     return reflect
+

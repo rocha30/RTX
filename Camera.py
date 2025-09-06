@@ -21,10 +21,6 @@ class Camera:
         self.viewport_width = 720
         self.viewport_height = 720
         
-    # def print_camera_direction(self):
-    #     forward = self.target - self.position
-    #     forward = forward / np.linalg.norm(forward)
-    #     print(f"Camera is looking at: {forward}")
         
 
     def set_position(self, x, y, z):

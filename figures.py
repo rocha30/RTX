@@ -1,3 +1,4 @@
+from numpy import *
 import numpy as np 
 from intercept import *
 
@@ -21,49 +22,39 @@ class Sphere(Shapes):
         return (point - self.position) / np.linalg.norm(point - self.position)
 
     def ray_intersect(self, orig, dir):
-        # Convertir a arrays de numpy para asegurar compatibilidad
-        orig = np.array(orig)
-        dir = np.array(dir)
+        L = np.subtract(self.position, orig)
+        tca = np.dot(L, dir)
+        d = (np.linalg.norm(L)**2 - tca**2)**0.5
         
-        # Calcular la intersección rayo-esfera
-        oc = orig - self.position
-        a = np.dot(dir, dir)
-        b = 2.0 * np.dot(oc, dir)
-        c = np.dot(oc, oc) - self.radius * self.radius
-        
-        discriminant = b * b - 4 * a * c
-        
-        # Si no hay intersección, retornar None
-        if discriminant < 0:
+        if d > self.radius:
             return None
         
-        sqrt_discriminant = np.sqrt(discriminant)
-        t1 = (-b - sqrt_discriminant) / (2 * a)
-        t2 = (-b + sqrt_discriminant) / (2 * a)
+        thc = (self.radius**2 - d**2)**0.5
         
-        # Seleccionar el valor t apropiado (la intersección más cercana y positiva)
-        t = None
-        if t1 > 0 and t2 > 0:
-            t = min(t1, t2)
-        elif t1 > 0:
-            t = t1
-        elif t2 > 0:
-            t = t2
-        else:
-            return None  # Ambas intersecciones están detrás del origen del rayo
+        t0 = tca - thc
+        t1 = tca + thc
         
-        # Calcular el punto de intersección
-        point = orig + dir * t
+        if t0 < 0:
+            t0 = t1
+        if t0 < 0:
+            return None
         
-        # Calcular la normal en el punto de intersección
-        n = point - self.position
-        normal = n / np.linalg.norm(n)
+        P = np.add(orig, np.multiply(dir, t0))
         
+        normal = np.subtract(P, self.position)
+        normal /= np.linalg.norm(normal)
+        
+        
+        # Obtener las coordenadas de textura
+        u = atan2(normal[2], normal[0]) / (2 * pi) + 0.5
+        v = acos(-normal[1]) / pi 
+
         # Retornar el objeto Intercept con toda la información
         return Intercept(
-            point=point, 
+            point=P, 
             normal=normal, 
-            distance=t, 
+            distance=t0, 
             rayDirection=dir, 
-            obj=self
+            obj=self, 
+            texCoords=[u,v]  
         )

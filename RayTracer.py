@@ -2,23 +2,25 @@ import pygame
 import random
 from gl import *
 from BMP_Writer import GenerateBMP
+from BMPTexture import BMPTexture
 from figures import *
 from lights import *
 from Material import *
 
-width = 100
-height = 100
+width = 255
+height = 255
 
-# pygame.init() 
+
 screen = pygame.display.set_mode((width, height), pygame.SCALED)
 clock = pygame.time.Clock()
 
 rend = Renderer(screen)
 
+rend.envMap = BMPTexture('fondo.bmp')
 
+rend.scene.append(Sphere(position=[0, 0, -5], radius=0.8, material = red_material))
 #Spheres 
-rend.scene.append(Sphere(position=[1, -1, -5], radius=1.0, material = red_material))
-# rend.scene.append(Sphere(position=[0, 0, -7], radius=0.5, material = green_material))
+rend.scene.append(Sphere(position=[2, 0, -5], radius=0.5, material = mirror_material))
 
 
 # Luces

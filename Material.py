@@ -90,7 +90,7 @@ class Material(object):
 
         # Aplicar el color difuso del material
         # diffuse * (Light + Reflect + Refract) + specColor
-        finalColor = [ finalColor[i]* (lightColor[i] + reflectColor[i] + refractColor[i]) for i in range(3)]
+        finalColor = [ finalColor[i] * (lightColor[i] + reflectColor[i] + refractColor[i]) for i in range(3)]
         finalColor = [(finalColor[i] + specColor[i]) for i in range(3)]
         finalColor = [min(1, finalColor[i]) for i in range(3)]
         
@@ -99,11 +99,53 @@ class Material(object):
         return finalColor
 
 
-red_material = Material(diffuse=[1, 0, 0], spec = 64, ks=0.2)
-green_material = Material(diffuse=[0, 1, 0], spec = 64, ks=0.2)
-mirror_material = Material(diffuse=[0.9,0.9,0.9], matType=REFLECTIVE)
-glass = Material(ior = 1.5, matType=TRANSPARENT)
-marble = Material(diffuse=[0.85,0.85,0.85], spec = 32, ks=0.25, matType=REFLECTIVE)
+# Opacos
+matte_red = Material(
+    diffuse=[0.85, 0.15, 0.15],  # rojo mate
+    spec=8,                      # highlight suave
+    ks=0.0,
+    matType=OPAQUE
+)
+
+glossy_blue = Material(
+    diffuse=[0.15, 0.25, 0.90],  # azul saturado
+    spec=32,                     # un poco más brillante
+    ks=0.0,
+    matType=OPAQUE
+)
+
+# Reflectivos
+polished_gold = Material(
+    diffuse=[0.35, 0.28, 0.06], 
+    spec=96,
+    ks=0.90, 
+    matType=REFLECTIVE)
+
+lacquer_red = Material(
+    diffuse=[0.40, 0.05, 0.05],  # “capa base” rojiza
+    spec=64,                     # pulido
+    ks=0.65,                     # mezcla reflejo/undercoat
+    matType=REFLECTIVE
+)
+
+# Transparentes
+clear_glass = Material(
+    diffuse=[1.0, 1.0, 1.0],     # sin tinte
+    spec=64,                     # pulido
+    ks=0.0,
+    ior=1.50,                    # vidrio
+    matType=TRANSPARENT
+)
+
+green_glass = Material(
+    diffuse=[0.85, 1.00, 0.85],  # leve tinte verdoso (aplica a la parte transmitida)
+    spec=64,
+    ks=0.0,
+    ior=1.52,                    # vidrio cal-soda típico
+    matType=TRANSPARENT
+)
+
+
 
 """
 Para el phong se necesita calcular 

@@ -7,8 +7,8 @@ from figures import *
 from lights import *
 from Material import *
 
-width = 512
-height = 512
+width = 128
+height = 128
 
 
 screen = pygame.display.set_mode((width, height), pygame.SCALED)
@@ -18,9 +18,13 @@ rend = Renderer(screen)
 
 rend.envMap = BMPTexture('Fondo.bmp')
 
-rend.scene.append(Sphere(position=[0, 0, -5], radius=0.8, material = glass))
 #Spheres 
-# rend.scene.append(Sphere(position=[2, 0, -5], radius=0.5, material = mirror_material))
+rend.scene.append(Sphere(position=[-3, 2, -5], radius=1, material = matte_red))
+rend.scene.append(Sphere(position=[0, 2, -5], radius=1, material = glossy_blue))
+rend.scene.append(Sphere(position=[3, 2, -5], radius=1, material = polished_gold))
+rend.scene.append(Sphere(position=[-3, -2, -5], radius=1, material = lacquer_red))
+rend.scene.append(Sphere(position=[0, -2, -5], radius=1, material = clear_glass))
+rend.scene.append(Sphere(position=[3, -2, -5], radius=1, material = green_glass))
 
 
 # Luces

@@ -40,8 +40,10 @@ while isRunning:
     
     rend.glRender()
     clock.tick(60)
+    
+pygame.image.save(screen, "output.bmp")
 
 
-GenerateBMP('output.bmp', width, height, 3, rend.frameBuffer)
+# GenerateBMP('output.bmp', width, height, 3, rend.frameBuffer)
 
 pygame.quit()

@@ -7,8 +7,8 @@ from figures import *
 from lights import *
 from Material import *
 
-width = 128
-height = 128
+width = 720
+height = 720
 
 
 screen = pygame.display.set_mode((width, height), pygame.SCALED)
@@ -45,9 +45,9 @@ while isRunning:
     rend.glRender()
     clock.tick(60)
     
-pygame.image.save(screen, "output.bmp")
+# pygame.image.save(screen, "output.bmp")
 
 
-# GenerateBMP('output.bmp', width, height, 3, rend.frameBuffer)
+GenerateBMP('output.bmp', width, height, 3, rend.frameBuffer)
 
 pygame.quit()

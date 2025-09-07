@@ -2,7 +2,7 @@
 
 Un motor de ray tracing implementado en Python usando Pygame, capaz de renderizar escenas 3D con iluminación realista, reflexiones, refracciones y diferentes tipos de materiales.
 
-![Ejemplo de renderizado](6_Spheres.png)
+![Ejemplo de renderizado](https://github.com/rocha30/RTX/blob/Lab6/6%20_Spheres.png)
 
 ## Características
 

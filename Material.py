@@ -37,6 +37,16 @@ class Material(object):
                 lightDir = [-i for i in light.direction]
                 shadowIntercept = renderer.glCastRay(intercept.point, lightDir, intercept.obj)
 
+            elif light.lightType == "Point" or light.lightType == "Spot":
+                lightDir = np.subtract(light.position, intercept.point)
+                R = np.linalg.norm(lightDir)
+                lightDir /= R
+                shadowIntercept = renderer.glCastRay(intercept.point, lightDir, intercept.obj)
+    
+                if shadowIntercept != None:
+                    if shadowIntercept.distance > R:
+                        shadowIntercept = None
+                    
             if shadowIntercept == None:
                 
                 specColor = [(specColor[i] + light.GetSpecularColor(intercept, renderer.camera.translation)[i]) for i in range(3)]
@@ -143,6 +153,42 @@ green_glass = Material(
     ks=0.0,
     ior=1.52,                    # vidrio cal-soda típico
     matType=TRANSPARENT
+)
+
+# Materiales más suaves y neutros
+soft_white = Material(
+    diffuse=[0.9, 0.9, 0.9],     # blanco suave
+    spec=16,
+    ks=0.0,
+    matType=OPAQUE
+)
+
+warm_gray = Material(
+    diffuse=[0.7, 0.65, 0.6],    # gris cálido
+    spec=8,
+    ks=0.0,
+    matType=OPAQUE
+)
+
+light_beige = Material(
+    diffuse=[0.8, 0.75, 0.7],    # beige claro
+    spec=12,
+    ks=0.0,
+    matType=OPAQUE
+)
+
+soft_gold = Material(
+    diffuse=[0.6, 0.5, 0.3],     # dorado suave
+    spec=32,
+    ks=0.3,
+    matType=REFLECTIVE
+)
+
+pale_blue = Material(
+    diffuse=[0.8, 0.85, 0.9],    # azul pálido
+    spec=16,
+    ks=0.0,
+    matType=OPAQUE
 )
 
 

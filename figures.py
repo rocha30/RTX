@@ -1,6 +1,8 @@
 from numpy import *
 import numpy as np 
 from intercept import *
+from MathLib import *
+from Material import *
 
 class Shapes(object):
     def __init__(self, position, material):
@@ -66,28 +68,28 @@ class Sphere(Shapes):
 class Plane(Shapes):
     def __init__(self, position, normal, material):
         super().__init__(position, material)
-        norm = np.linalg.norm(normal)
-        if norm != 0:
-            self.normal = normal / norm
-        else:
-            self.normal = np.array([0, 0, 1])  # default normal
+        self.normal = normal / np.linalg.norm(normal)
         self.type = "Plane"
 
     def ray_intersect(self, orig, dir):
         denom = np.dot(dir, self.normal)
-        if abs(denom) > 1e-6:
-            d = np.dot(np.subtract(self.position, orig), self.normal) / denom
-            if d >= 0:
-                P = np.add(orig, np.multiply(dir, d))
-                return Intercept(
-                    point=P,
-                    normal=self.normal,
-                    distance=d,
-                    rayDirection=dir,
-                    obj=self,
-                    texCoords=None  
-                )
-        return None
+        if isclose (0, denom):
+            return None  # El rayo es paralelo al plano
+        d = np.dot(np.subtract(self.position, orig), self.normal) 
+        
+        t = d / denom
+        if t < 0:
+            return None  
+        
+        P = np.add(orig, np.multiply(dir, t))
+            
+        
+        return Intercept(point = P, 
+                         normal = self.normal, 
+                         distance = t, 
+                         rayDirection = dir, 
+                         obj = self, 
+                         texCoords = None)
     
 class Triangle(Shapes):
     def __init__(self, v0, v1, v2, material):
@@ -202,34 +204,207 @@ class AABB(Shapes):
             texCoords=None  
         )
         
-class Disk (Shapes):
+class Disk(Plane):
     def __init__(self, position, normal, radius, material):
-        super().__init__(position, material)
-        norm = np.linalg.norm(normal)
-        if norm != 0:
-            self.normal = normal / norm
-        else:
-            self.normal = np.array([0, 1, 0])  # default normal (up)
+        super().__init__(position, normal, material)
         self.radius = radius
         self.type = "Disk"
 
-    
     def ray_intersect(self, orig, dir):
-        denom = np.dot(dir, self.normal)
-        if abs(denom) > 1e-6:
-            d = np.dot(np.subtract(self.position, orig), self.normal) / denom
-            if d >= 0:  # La intersección debe estar hacia adelante
-                P = np.add(orig, np.multiply(dir, d))  # Punto de intersección
-                if np.linalg.norm(P - self.position) <= self.radius:  # Verificar que el punto está dentro del radio
-                    return Intercept(
-                        point=P,
-                        normal=self.normal,
-                        distance=d,
-                        rayDirection=dir,
-                        obj=self,
-                        texCoords=None  
-                    )
+        # Usar la intersección del plano padre
+        plane_hit = super().ray_intersect(orig, dir)
+        
+        if plane_hit is None:
+            return None
+        
+        # Verificar que el punto está dentro del radio
+        if np.linalg.norm(plane_hit.point - self.position) <= self.radius:
+            # Cambiar el tipo de objeto en el intercept para que sea el disco
+            return Intercept(
+                point=plane_hit.point,
+                normal=plane_hit.normal,
+                distance=plane_hit.distance,
+                rayDirection=plane_hit.rayDirection,
+                obj=self,  #self del disco, no del plano 
+                texCoords=plane_hit.texCoords
+            )
+        
         return None
+
+
+class OBB(Shapes):
+
+    def __init__(self, center, axes, extents, material):
+        super().__init__(position=np.array(center, dtype=float), material=material)
+        # Ensure axes are numpy arrays and orthonormalize defensively
+        a0 = np.array(axes[0], dtype=float)
+        a1 = np.array(axes[1], dtype=float)
+        a2 = np.array(axes[2], dtype=float)
+
+        # Orthonormalize via Gram-Schmidt (in case input isn't perfect)
+        def norm(v):
+            n = np.linalg.norm(v)
+            return v / n if n != 0 else v
+
+        u0 = norm(a0)
+        u1 = a1 - np.dot(a1, u0) * u0
+        u1 = norm(u1)
+        u2 = a2 - np.dot(a2, u0) * u0 - np.dot(a2, u1) * u1
+        u2 = norm(u2)
+
+        self.axes = np.stack([u0, u1, u2], axis=0)  # 3x3 matrix (rows are axes)
+        self.extents = np.array(extents, dtype=float)
+        self.type = "OBB"
+
+    def ray_intersect(self, orig, dir):
+        """Transform the ray into the OBB local space (where the box is axis-aligned)
+        and perform a slab/AABB intersection test. Returns an Intercept or None.
+        """
+        orig = np.array(orig, dtype=float)
+        dir = np.array(dir, dtype=float)
+
+        # Build rotation matrix from world to OBB local: columns are axes, so use transpose
+        R = self.axes.T  # world->local rotation (3x3)
+
+        # Translate origin to OBB local center and rotate
+        local_orig = np.dot(R, (orig - self.position))
+        local_dir = np.dot(R, dir)
+
+        # Now we have an AABB from -extents to +extents in local space
+        epsilon = 1e-8
+        tmin = -np.inf
+        tmax = np.inf
+
+        for i in range(3):
+            if abs(local_dir[i]) < epsilon:
+                # Ray parallel to slab; if origin not within slab -> no hit
+                if local_orig[i] < -self.extents[i] or local_orig[i] > self.extents[i]:
+                    return None
+                # Otherwise, it passes this slab - continue
+            else:
+                t1 = (-self.extents[i] - local_orig[i]) / local_dir[i]
+                t2 = ( self.extents[i] - local_orig[i]) / local_dir[i]
+                t_near_i = min(t1, t2)
+                t_far_i = max(t1, t2)
+                tmin = max(tmin, t_near_i)
+                tmax = min(tmax, t_far_i)
+                if tmin > tmax:
+                    return None
+
+        if tmax < 0:
+            return None
+
+        t_local = tmin if tmin >= 0 else tmax
+        # Intersection point in local space
+        P_local = local_orig + local_dir * t_local
+
+        # Compute intersection point back in world space
+        P_world = np.dot(self.axes.T.T, P_local) + self.position  # axes.T.T == axes
+
+        # Compute normal: determine which face was hit by checking which component is near extent
+        normal_local = np.zeros(3, dtype=float)
+        eps_norm = 1e-6
+        for i in range(3):
+            if abs(P_local[i] - self.extents[i]) < eps_norm:
+                normal_local[i] = 1.0
+                break
+            if abs(P_local[i] + self.extents[i]) < eps_norm:
+                normal_local[i] = -1.0
+                break
+
+        # Transform normal back to world space (rotate by axes matrix)
+        normal_world = np.dot(self.axes.T.T, normal_local)
+        nrm = np.linalg.norm(normal_world)
+        if nrm != 0:
+            normal_world /= nrm
+        else:
+            normal_world = np.array([0.0, 1.0, 0.0])
+
+        return Intercept(
+            point=P_world,
+            normal=normal_world,
+            distance=t_local,
+            rayDirection=dir,
+            obj=self,
+            texCoords=None
+        )
+
+
+
+
+class TruncatedSphere(Shapes):
+    """Truncated Sphere - a sphere cut by two parallel planes.
+    
+    Constructor: TruncatedSphere(position, radius, y_min, y_max, material)
+    - position: center of the original sphere
+    - radius: radius of the sphere
+    - y_min, y_max: Y-coordinate limits for truncation (in world coordinates)
+    """
+    def __init__(self, position, radius, y_min, y_max, material):
+        super().__init__(position, material)
+        self.radius = float(radius)
+        self.y_min = float(y_min)
+        self.y_max = float(y_max)
+        self.type = "TruncatedSphere"
+        
+    def ray_intersect(self, orig, dir):
+        """Ray-Truncated Sphere intersection.
+        First find sphere intersection, then check Y bounds."""
+        orig = np.array(orig, dtype=float)
+        dir = np.array(dir, dtype=float)
+        
+        # Standard sphere intersection
+        L = self.position - orig
+        tca = np.dot(L, dir)
+        d_squared = np.dot(L, L) - tca * tca
+        
+        if d_squared > self.radius * self.radius:
+            return None
+        
+        thc = np.sqrt(self.radius * self.radius - d_squared)
+        
+        t0 = tca - thc
+        t1 = tca + thc
+        
+        # Try both intersection points
+        candidates = []
+        if t0 > 1e-6:
+            candidates.append(t0)
+        if t1 > 1e-6 and t1 != t0:
+            candidates.append(t1)
+            
+        if not candidates:
+            return None
+            
+        # Check which intersection points fall within Y bounds
+        for t in sorted(candidates):
+            P = orig + t * dir
+            
+            # Check if intersection point is within truncation bounds
+            if self.y_min <= P[1] <= self.y_max:
+                # Calculate normal (same as regular sphere)
+                normal = P - self.position
+                norm_length = np.linalg.norm(normal)
+                
+                if norm_length > 1e-8:
+                    normal = normal / norm_length
+                else:
+                    normal = np.array([0.0, 1.0, 0.0])  # fallback
+                
+                # Calculate spherical UV coordinates
+                u = np.arctan2(normal[2], normal[0]) / (2 * np.pi) + 0.5
+                v = np.arccos(-normal[1]) / np.pi
+                
+                return Intercept(
+                    point=P,
+                    normal=normal,
+                    distance=t,
+                    rayDirection=dir,
+                    obj=self,
+                    texCoords=[u, v]
+                )
+        
+        return None  # No valid intersection within bounds
 
     
 

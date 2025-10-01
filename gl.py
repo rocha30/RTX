@@ -174,7 +174,7 @@ class Renderer ():
                     color = self.glEnvMapColor(self.camera.translation, dir)
 
                 self.glPoint(x, y, color)
-            pygame.display.flip()
+                pygame.display.flip()
                         
                         
 

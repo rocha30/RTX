@@ -233,7 +233,16 @@ class Disk(Plane):
 
 
 class OBB(Shapes):
+    """Oriented Bounding Box defined by a center position, local axes (3 orthonormal vectors)
+    and half-sizes (extents) along those axes.
 
+    Constructor signature:
+        OBB(center, axes, extents, material)
+
+    - center: [x,y,z]
+    - axes: list of 3 orthonormal vectors [[ax,ay,az], [bx,by,bz], [cx,cy,cz]]
+    - extents: [ex,ey,ez] (positive half-sizes)
+    """
     def __init__(self, center, axes, extents, material):
         super().__init__(position=np.array(center, dtype=float), material=material)
         # Ensure axes are numpy arrays and orthonormalize defensively
@@ -272,8 +281,8 @@ class OBB(Shapes):
 
         # Now we have an AABB from -extents to +extents in local space
         epsilon = 1e-8
-        tmin = -np.inf
-        tmax = np.inf
+        tmin = float('-inf')
+        tmax = float('inf')
 
         for i in range(3):
             if abs(local_dir[i]) < epsilon:
@@ -282,12 +291,20 @@ class OBB(Shapes):
                     return None
                 # Otherwise, it passes this slab - continue
             else:
-                t1 = (-self.extents[i] - local_orig[i]) / local_dir[i]
-                t2 = ( self.extents[i] - local_orig[i]) / local_dir[i]
-                t_near_i = min(t1, t2)
-                t_far_i = max(t1, t2)
-                tmin = max(tmin, t_near_i)
-                tmax = min(tmax, t_far_i)
+                t1 = float((-self.extents[i] - local_orig[i]) / local_dir[i])
+                t2 = float(( self.extents[i] - local_orig[i]) / local_dir[i])
+                # Use explicit comparison to avoid numpy's min/max wrappers
+                if t1 < t2:
+                    t_near_i = t1
+                    t_far_i = t2
+                else:
+                    t_near_i = t2
+                    t_far_i = t1
+                # Update tmin/tmax with explicit comparisons (avoid numpy wrappers)
+                if t_near_i > tmin:
+                    tmin = t_near_i
+                if t_far_i < tmax:
+                    tmax = t_far_i
                 if tmin > tmax:
                     return None
 
@@ -330,6 +347,125 @@ class OBB(Shapes):
         )
 
 
+class Torus(Shapes):
+    """Torus (donut shape) defined by major radius R (center to tube center) 
+    and minor radius r (tube radius). Centered at position with axis along Y.
+    
+    Constructor: Torus(position, major_radius, minor_radius, material)
+    """
+    def __init__(self, position, major_radius, minor_radius, material):
+        super().__init__(position, material)
+        self.major_radius = float(major_radius)  # R
+        self.minor_radius = float(minor_radius)  # r
+        self.type = "Torus"
+        
+    def solve_quartic(self, a, b, c, d, e):
+        """Solve quartic equation ax^4 + bx^3 + cx^2 + dx + e = 0
+        Returns list of real roots in ascending order"""
+        # Use numpy's polynomial root finding
+        coeffs = [a, b, c, d, e]
+        roots = np.roots(coeffs)
+        
+        # Filter for real roots with small imaginary part
+        real_roots = []
+        for root in roots:
+            if abs(root.imag) < 1e-10 and root.real > 1e-10:  # positive real roots
+                real_roots.append(root.real)
+        
+        return sorted(real_roots)
+    
+    def ray_intersect(self, orig, dir):
+        """Ray-Torus intersection using parametric equation.
+        Torus equation: (sqrt(x^2 + z^2) - R)^2 + y^2 = r^2
+        """
+        orig = np.array(orig, dtype=float)
+        dir = np.array(dir, dtype=float)
+        
+        # Translate ray to torus local coordinates
+        ray_orig = orig - self.position
+        ray_dir = dir
+
+        # Assign parameters early so the fast-reject can use them
+        R = self.major_radius
+        r = self.minor_radius
+
+        # Fast reject with bounding sphere (radius = R + r)
+        # If the ray doesn't intersect the outer sphere, it can't hit the torus.
+        O = ray_orig
+        tca_s = -np.dot(O, ray_dir)
+        d2_s = np.dot(O, O) - tca_s * tca_s
+        outer_r = (R + r)
+        if d2_s > (outer_r * outer_r):
+            return None
+        
+        # Ray equation: P(t) = ray_orig + t * ray_dir
+        # Substitute into torus equation and expand to get quartic
+        ox, oy, oz = ray_orig
+        dx, dy, dz = ray_dir
+        
+        
+        # Coefficients for the quartic equation at^4 + bt^3 + ct^2 + dt + e = 0
+        # This comes from substituting P(t) into torus equation and expanding
+        sum_d_sqr = dx*dx + dy*dy + dz*dz
+        sum_o_sqr = ox*ox + oy*oy + oz*oz
+        sum_od = ox*dx + oy*dy + oz*dz
+        
+        # Quartic coefficients
+        a = sum_d_sqr * sum_d_sqr
+        b = 4.0 * sum_d_sqr * sum_od
+        c = 2.0 * sum_d_sqr * (sum_o_sqr - (R*R + r*r)) + 4.0 * sum_od * sum_od + 4.0 * R*R * (dy*dy)
+        d = 4.0 * sum_od * (sum_o_sqr - (R*R + r*r)) + 8.0 * R*R * oy * dy
+        e = (sum_o_sqr - (R*R + r*r)) * (sum_o_sqr - (R*R + r*r)) - 4.0 * R*R * (r*r - oy*oy)
+        
+        # Solve quartic equation
+        roots = self.solve_quartic(a, b, c, d, e)
+        
+        if not roots:
+            return None
+            
+        # Find the closest positive root
+        t = roots[0] if roots[0] > 1e-6 else None
+        if t is None:
+            return None
+            
+        # Calculate intersection point
+        P = ray_orig + t * ray_dir
+        
+        # Calculate normal at intersection point using correct torus normal formula
+        x, y, z = P
+        
+        # For a torus with equation: (sqrt(x²+z²) - R)² + y² = r²
+        # The gradient gives us the normal vector
+        dist_from_center = np.sqrt(x*x + z*z)
+        
+        if dist_from_center < 1e-8:  # Special case: point on Y-axis
+            # Use the direction towards/away from the Y-axis
+            normal = np.array([1.0, 0.0, 0.0])  # arbitrary radial direction
+        else:
+            # Correct torus normal calculation
+            # ∇F = (2(√(x²+z²) - R) * (x/√(x²+z²)), 2y, 2(√(x²+z²) - R) * (z/√(x²+z²)))
+            radial_factor = 2.0 * (dist_from_center - R) / dist_from_center
+            normal = np.array([radial_factor * x, 2.0 * y, radial_factor * z])
+            
+        # Normalize normal vector
+        norm_length = np.linalg.norm(normal)
+        if norm_length > 1e-8:
+            normal = normal / norm_length
+        else:
+            # Fallback normal if calculation fails
+            normal = np.array([0.0, 1.0, 0.0])
+            
+        # Transform back to world coordinates
+        P_world = P + self.position
+        
+        return Intercept(
+            point=P_world,
+            normal=normal,
+            distance=t,
+            rayDirection=dir,
+            obj=self,
+            texCoords=None
+        )
 
 
 class TruncatedSphere(Shapes):
@@ -405,6 +541,117 @@ class TruncatedSphere(Shapes):
                 )
         
         return None  # No valid intersection within bounds
+
+
+class Cylinder(Shapes):
+    """Cylinder with caps defined by position (center), axis direction, radius and height.
+    
+    Constructor: Cylinder(position, axis, radius, height, material)
+    - position: center point of the cylinder
+    - axis: direction vector (will be normalized) 
+    - radius: radius of the cylinder
+    - height: total height of the cylinder
+    """
+    def __init__(self, position, axis, radius, height, material):
+        super().__init__(position, material)
+        self.axis = np.array(axis, dtype=float)
+        # Normalize axis
+        axis_length = np.linalg.norm(self.axis)
+        if axis_length > 1e-8:
+            self.axis = self.axis / axis_length
+        else:
+            self.axis = np.array([0.0, 1.0, 0.0])  # default to Y-axis
+            
+        self.radius = float(radius)
+        self.height = float(height)
+        self.type = "Cylinder"
+        
+        # Pre-compute half-height for easier calculations
+        self.half_height = self.height / 2.0
+        
+    def ray_intersect(self, orig, dir):
+        """Ray-Cylinder intersection including side surface and caps."""
+        orig = np.array(orig, dtype=float)
+        dir = np.array(dir, dtype=float)
+        
+        # Transform to cylinder local coordinates where axis is along Y
+        # Vector from cylinder center to ray origin
+        oc = orig - self.position
+        
+        # Project onto cylinder axis to get the Y-component in local space
+        axis_proj_oc = np.dot(oc, self.axis)
+        axis_proj_dir = np.dot(dir, self.axis)
+        
+        # Perpendicular components (in the XZ plane of cylinder space)
+        perp_oc = oc - axis_proj_oc * self.axis
+        perp_dir = dir - axis_proj_dir * self.axis
+        
+        candidates = []
+        
+        # 1. Intersect with cylindrical side surface
+        # Equation: |perp_oc + t * perp_dir|² = radius²
+        a = np.dot(perp_dir, perp_dir)
+        b = 2.0 * np.dot(perp_oc, perp_dir)
+        c = np.dot(perp_oc, perp_oc) - self.radius * self.radius
+        
+        discriminant = b * b - 4 * a * c
+        
+        if discriminant >= 0 and a > 1e-8:  # Ray intersects infinite cylinder
+            sqrt_disc = np.sqrt(discriminant)
+            t1 = (-b - sqrt_disc) / (2 * a)
+            t2 = (-b + sqrt_disc) / (2 * a)
+            
+            for t in [t1, t2]:
+                if t > 1e-6:  # Valid intersection
+                    # Check if intersection is within cylinder height
+                    y_intersect = axis_proj_oc + t * axis_proj_dir
+                    if -self.half_height <= y_intersect <= self.half_height:
+                        candidates.append((t, 'side', y_intersect))
+        
+        # 2. Intersect with caps (top and bottom)
+        if abs(axis_proj_dir) > 1e-8:  # Ray not parallel to caps
+            # Bottom cap (y = -half_height)
+            t_bottom = (-self.half_height - axis_proj_oc) / axis_proj_dir
+            if t_bottom > 1e-6:
+                perp_at_bottom = perp_oc + t_bottom * perp_dir
+                if np.dot(perp_at_bottom, perp_at_bottom) <= self.radius * self.radius:
+                    candidates.append((t_bottom, 'bottom', -self.half_height))
+            
+            # Top cap (y = +half_height)
+            t_top = (self.half_height - axis_proj_oc) / axis_proj_dir
+            if t_top > 1e-6:
+                perp_at_top = perp_oc + t_top * perp_dir
+                if np.dot(perp_at_top, perp_at_top) <= self.radius * self.radius:
+                    candidates.append((t_top, 'top', self.half_height))
+        
+        if not candidates:
+            return None
+            
+        # Find closest intersection
+        candidates.sort(key=lambda x: x[0])
+        t, surface_type, y_local = candidates[0]
+        
+        # Compute intersection point
+        P = orig + t * dir
+        
+        # Compute normal based on surface type
+        if surface_type == 'side':
+            # Normal on cylindrical surface (perpendicular to axis)
+            local_radial = P - self.position - y_local * self.axis
+            normal = local_radial / np.linalg.norm(local_radial)
+        elif surface_type == 'top':
+            normal = self.axis  # Points outward along axis
+        else:  # surface_type == 'bottom'
+            normal = -self.axis  # Points outward (opposite to axis)
+        
+        return Intercept(
+            point=P,
+            normal=normal,
+            distance=t,
+            rayDirection=dir,
+            obj=self,
+            texCoords=None
+        )
 
     
 

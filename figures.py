@@ -26,12 +26,20 @@ class Sphere(Shapes):
     def ray_intersect(self, orig, dir):
         L = np.subtract(self.position, orig)
         tca = np.dot(L, dir)
-        d = (np.linalg.norm(L)**2 - tca**2)**0.5
+        # Numeric stability: clamp tiny negatives before sqrt
+        d2 = np.linalg.norm(L)**2 - tca**2
+        if d2 < 0:
+            d2 = 0.0
+        d = np.sqrt(d2)
         
         if d > self.radius:
             return None
         
-        thc = (self.radius**2 - d**2)**0.5
+        # Clamp again to avoid -0.0 under sqrt from rounding
+        thc2 = self.radius**2 - d**2
+        if thc2 < 0:
+            thc2 = 0.0
+        thc = np.sqrt(thc2)
         
         t0 = tca - thc
         t1 = tca + thc
@@ -643,6 +651,281 @@ class Cylinder(Shapes):
             normal = self.axis  # Points outward along axis
         else:  # surface_type == 'bottom'
             normal = -self.axis  # Points outward (opposite to axis)
+        
+        return Intercept(
+            point=P,
+            normal=normal,
+            distance=t,
+            rayDirection=dir,
+            obj=self,
+            texCoords=None
+        )
+
+
+class Cone(Shapes):
+    """Cone (right circular cone) defined by tip position, base center, and radius.
+    
+    Constructor: Cone(tip, base_center, radius, material)
+    - tip: apex point of the cone
+    - base_center: center of the circular base
+    - radius: radius of the base circle
+    """
+    def __init__(self, tip, base_center, radius, material):
+        # Position is the midpoint between tip and base for convenience
+        midpoint = (np.array(tip) + np.array(base_center)) / 2.0
+        super().__init__(midpoint, material)
+        
+        self.tip = np.array(tip, dtype=float)
+        self.base_center = np.array(base_center, dtype=float)
+        self.radius = float(radius)
+        self.type = "Cone"
+        
+        # Calculate cone axis (from base to tip)
+        self.axis = self.tip - self.base_center
+        self.height = np.linalg.norm(self.axis)
+        if self.height > 1e-8:
+            self.axis = self.axis / self.height
+        else:
+            self.axis = np.array([0.0, 1.0, 0.0])
+            
+        # Cone angle for calculations
+        self.cos_angle_sq = (self.height**2) / (self.height**2 + self.radius**2)
+        
+    def ray_intersect(self, orig, dir):
+        """Ray-Cone intersection including conical surface and base."""
+        orig = np.array(orig, dtype=float)
+        dir = np.array(dir, dtype=float)
+        
+        # Transform to cone local space (tip at origin, axis along positive direction)
+        oc = orig - self.tip
+        
+        # Project onto cone axis
+        axis_dot_oc = np.dot(self.axis, oc)
+        axis_dot_dir = np.dot(self.axis, dir)
+        
+        candidates = []
+        
+        # 1. Intersect with conical surface
+        # Cone equation: (oc + t*dir - proj_axis)² = (cos²θ) * (proj_axis)²
+        # where proj_axis is the projection onto the cone axis
+        
+        # Coefficients for quadratic equation
+        a = np.dot(dir, dir) - axis_dot_dir**2 * self.cos_angle_sq
+        b = 2.0 * (np.dot(oc, dir) - axis_dot_oc * axis_dot_dir * self.cos_angle_sq)
+        c = np.dot(oc, oc) - axis_dot_oc**2 * self.cos_angle_sq
+        
+        discriminant = b**2 - 4*a*c
+        
+        if discriminant >= 0 and abs(a) > 1e-8:
+            sqrt_disc = np.sqrt(discriminant)
+            t1 = (-b - sqrt_disc) / (2*a)
+            t2 = (-b + sqrt_disc) / (2*a)
+            
+            for t in [t1, t2]:
+                if t > 1e-6:
+                    # Check if intersection is within cone bounds
+                    P = orig + t * dir
+                    tip_to_P = P - self.tip
+                    proj_length = np.dot(tip_to_P, self.axis)
+                    
+                    # Must be between tip (0) and base (height)
+                    if 0 <= proj_length <= self.height:
+                        candidates.append((t, 'surface'))
+        
+        # 2. Intersect with circular base
+        if abs(axis_dot_dir) > 1e-8:  # Ray not parallel to base
+            # Base plane intersection
+            t_base = (np.dot(self.base_center - orig, self.axis)) / axis_dot_dir
+            
+            if t_base > 1e-6:
+                P_base = orig + t_base * dir
+                # Check if point is within base circle
+                base_to_P = P_base - self.base_center
+                radial_dist_sq = np.dot(base_to_P, base_to_P) - (np.dot(base_to_P, self.axis))**2
+                
+                if radial_dist_sq <= self.radius**2:
+                    candidates.append((t_base, 'base'))
+        
+        if not candidates:
+            return None
+            
+        # Find closest intersection
+        candidates.sort(key=lambda x: x[0])
+        t, surface_type = candidates[0]
+        
+        # Compute intersection point and normal
+        P = orig + t * dir
+        
+        if surface_type == 'surface':
+            # Normal on conical surface
+            tip_to_P = P - self.tip
+            proj_length = np.dot(tip_to_P, self.axis)
+            proj_point = self.tip + proj_length * self.axis
+            
+            # Radial component (perpendicular to axis)
+            radial = P - proj_point
+            radial_length = np.linalg.norm(radial)
+            
+            if radial_length > 1e-8:
+                radial_unit = radial / radial_length
+                # Normal combines radial and axial components
+                axial_component = self.radius / self.height
+                normal = radial_unit + axial_component * self.axis
+                normal = normal / np.linalg.norm(normal)
+            else:
+                normal = -self.axis  # At tip, normal points back along axis
+                
+        else:  # surface_type == 'base'
+            normal = -self.axis  # Base normal points away from tip
+            
+        return Intercept(
+            point=P,
+            normal=normal,
+            distance=t,
+            rayDirection=dir,
+            obj=self,
+            texCoords=None
+        )
+
+
+class Pyramid(Shapes):
+    """Triangular pyramid (tetrahedron) defined by apex and triangular base.
+    
+    Constructor: Pyramid(apex, base_vertices, material)
+    - apex: tip point of the pyramid
+    - base_vertices: list of 3 points forming the triangular base [v0, v1, v2]
+    """
+    def __init__(self, apex, base_vertices, material):
+        # Position is centroid of all 4 vertices
+        all_vertices = [apex] + list(base_vertices)
+        centroid = np.mean(all_vertices, axis=0)
+        super().__init__(centroid, material)
+        
+        self.apex = np.array(apex, dtype=float)
+        self.base_v0 = np.array(base_vertices[0], dtype=float)
+        self.base_v1 = np.array(base_vertices[1], dtype=float)
+        self.base_v2 = np.array(base_vertices[2], dtype=float)
+        self.type = "Pyramid"
+        
+        # Precompute base normal
+        edge1 = self.base_v1 - self.base_v0
+        edge2 = self.base_v2 - self.base_v0
+        self.base_normal = np.cross(edge1, edge2)
+        norm = np.linalg.norm(self.base_normal)
+        if norm > 1e-8:
+            self.base_normal = self.base_normal / norm
+        else:
+            self.base_normal = np.array([0.0, 1.0, 0.0])
+            
+        # Ensure normal points away from apex
+        apex_to_base = self.base_v0 - self.apex
+        if np.dot(self.base_normal, apex_to_base) < 0:
+            self.base_normal = -self.base_normal
+    
+    def point_in_triangle(self, point, v0, v1, v2):
+        """Check if point lies inside triangle using barycentric coordinates."""
+        # Compute vectors
+        v0v1 = v1 - v0
+        v0v2 = v2 - v0
+        v0p = point - v0
+        
+        # Compute dot products
+        dot00 = np.dot(v0v2, v0v2)
+        dot01 = np.dot(v0v2, v0v1)
+        dot02 = np.dot(v0v2, v0p)
+        dot11 = np.dot(v0v1, v0v1)
+        dot12 = np.dot(v0v1, v0p)
+        
+        # Compute barycentric coordinates
+        inv_denom = 1.0 / (dot00 * dot11 - dot01 * dot01)
+        u = (dot11 * dot02 - dot01 * dot12) * inv_denom
+        v = (dot00 * dot12 - dot01 * dot02) * inv_denom
+        
+        # Check if point is in triangle
+        return (u >= 0) and (v >= 0) and (u + v <= 1)
+    
+    def intersect_triangle(self, orig, dir, v0, v1, v2, normal):
+        """Intersect ray with triangle using Möller-Trumbore algorithm."""
+        edge1 = v1 - v0
+        edge2 = v2 - v0
+        h = np.cross(dir, edge2)
+        a = np.dot(edge1, h)
+        
+        if abs(a) < 1e-6:  # Ray parallel to triangle
+            return None
+            
+        f = 1.0 / a
+        s = orig - v0
+        u = f * np.dot(s, h)
+        
+        if u < 0.0 or u > 1.0:
+            return None
+            
+        q = np.cross(s, edge1)
+        v = f * np.dot(dir, q)
+        
+        if v < 0.0 or u + v > 1.0:
+            return None
+            
+        t = f * np.dot(edge2, q)
+        
+        if t > 1e-6:
+            return t
+        return None
+        
+    def ray_intersect(self, orig, dir):
+        """Ray-Pyramid intersection with 4 triangular faces."""
+        orig = np.array(orig, dtype=float)
+        dir = np.array(dir, dtype=float)
+        
+        candidates = []
+        
+        # Face 1: Base triangle
+        t = self.intersect_triangle(orig, dir, self.base_v0, self.base_v1, self.base_v2, self.base_normal)
+        if t is not None:
+            candidates.append((t, 'base', self.base_normal))
+            
+        # Face 2: Side triangle (apex, v0, v1)
+        edge1 = self.base_v1 - self.apex
+        edge2 = self.base_v0 - self.apex
+        side_normal = np.cross(edge1, edge2)
+        norm = np.linalg.norm(side_normal)
+        if norm > 1e-8:
+            side_normal = side_normal / norm
+            t = self.intersect_triangle(orig, dir, self.apex, self.base_v0, self.base_v1, side_normal)
+            if t is not None:
+                candidates.append((t, 'side1', side_normal))
+        
+        # Face 3: Side triangle (apex, v1, v2)
+        edge1 = self.base_v2 - self.apex
+        edge2 = self.base_v1 - self.apex
+        side_normal = np.cross(edge1, edge2)
+        norm = np.linalg.norm(side_normal)
+        if norm > 1e-8:
+            side_normal = side_normal / norm
+            t = self.intersect_triangle(orig, dir, self.apex, self.base_v1, self.base_v2, side_normal)
+            if t is not None:
+                candidates.append((t, 'side2', side_normal))
+        
+        # Face 4: Side triangle (apex, v2, v0)
+        edge1 = self.base_v0 - self.apex
+        edge2 = self.base_v2 - self.apex
+        side_normal = np.cross(edge1, edge2)
+        norm = np.linalg.norm(side_normal)
+        if norm > 1e-8:
+            side_normal = side_normal / norm
+            t = self.intersect_triangle(orig, dir, self.apex, self.base_v2, self.base_v0, side_normal)
+            if t is not None:
+                candidates.append((t, 'side3', side_normal))
+        
+        if not candidates:
+            return None
+            
+        # Find closest intersection
+        candidates.sort(key=lambda x: x[0])
+        t, face_type, normal = candidates[0]
+        
+        P = orig + t * dir
         
         return Intercept(
             point=P,

@@ -6,16 +6,18 @@ from refractionFunctions import *
 OPAQUE = 0
 REFLECTIVE = 1
 TRANSPARENT = 2
+EMISSIVE = 3  # Nuevo tipo de material emisivo
 
 
 class Material(object):
-    def __init__(self, diffuse=[1,1,1], spec=1.0, ks=0, ior = 1.0 ,texture = None,  matType = OPAQUE):
+    def __init__(self, diffuse=[1,1,1], spec=1.0, ks=0, ior = 1.0 ,texture = None, matType = OPAQUE, emission=[0,0,0]):
         self.diffuse = diffuse
         self.spec = spec
         self.ior = ior
         self.ks = ks
         self.texture = texture
         self.matType = matType
+        self.emission = emission  # Color de emisión para materiales emisivos
 
     def GetSurfaceColor(self, intercept, renderer, recursion=0):
         shadowIntercept = None
@@ -25,6 +27,10 @@ class Material(object):
         reflectColor = [0, 0, 0]
         refractColor = [0,0,0]
         finalColor = self.diffuse
+        
+        # Si es material emisivo, empezar con su color de emisión
+        if self.matType == EMISSIVE:
+            lightColor = self.emission[:]
         
         if self.texture and intercept.texCoords:
             textureColor = self.texture.getColor(intercept.texCoords[0], intercept.texCoords[1])
@@ -51,7 +57,7 @@ class Material(object):
                 
                 specColor = [(specColor[i] + light.GetSpecularColor(intercept, renderer.camera.translation)[i]) for i in range(3)]
                 
-                if self.matType == OPAQUE: 
+                if self.matType == OPAQUE or self.matType == EMISSIVE: 
                     lightColor = [(lightColor[i] + light.GetLightColor(intercept)[i]) for i in range(3)]
                     
         if self.matType == REFLECTIVE:
@@ -189,6 +195,133 @@ pale_blue = Material(
     spec=16,
     ks=0.0,
     matType=OPAQUE
+)
+
+# ===== MATERIALES PARA ESCENA COMPLEJA LAB FINAL =====
+
+# Cristales transparentes con diferentes IOR
+crystal_clear = Material(
+    diffuse=[1.0, 1.0, 1.0],     # cristal puro
+    spec=128,
+    ks=0.0,
+    ior=1.52,                    # vidrio de cuarzo
+    matType=TRANSPARENT
+)
+
+crystal_red = Material(
+    diffuse=[1.0, 0.9, 0.9],     # ligero tinte rojo
+    spec=128,
+    ks=0.0,
+    ior=1.54,                    # vidrio con plomo
+    matType=TRANSPARENT
+)
+
+crystal_green = Material(
+    diffuse=[0.9, 1.0, 0.9],     # tinte verde
+    spec=128,
+    ks=0.0,
+    ior=1.53,
+    matType=TRANSPARENT
+)
+
+# Metales brillantes
+polished_silver = Material(
+    diffuse=[0.75, 0.75, 0.8],   # plata pulida
+    spec=128,
+    ks=0.95,
+    matType=REFLECTIVE
+)
+
+brass_shiny = Material(
+    diffuse=[0.7, 0.6, 0.25],    # latón brillante
+    spec=96,
+    ks=0.85,
+    matType=REFLECTIVE
+)
+
+# Material emisivo naranja
+emissive_orange = Material(
+    diffuse=[1.0, 0.6, 0.2],     # base naranja
+    spec=32,
+    ks=0.0,
+    matType=EMISSIVE,
+    emission=[1.0, 0.5, 0.1]     # luz naranja intensa
+)
+
+# Materiales mate y texturizados
+matte_black = Material(
+    diffuse=[0.05, 0.05, 0.05],  # negro mate
+    spec=4,
+    ks=0.0,
+    matType=OPAQUE
+)
+
+wood_dark = Material(
+    diffuse=[0.4, 0.25, 0.15],   # madera oscura
+    spec=8,
+    ks=0.1,                      # ligero brillo
+    matType=OPAQUE
+)
+
+wood_light = Material(
+    diffuse=[0.6, 0.45, 0.3],    # madera clara
+    spec=8,
+    ks=0.05,
+    matType=OPAQUE
+)
+
+sand_texture = Material(
+    diffuse=[0.8, 0.75, 0.6],    # arena
+    spec=4,
+    ks=0.0,
+    matType=OPAQUE
+)
+
+rock_dark = Material(
+    diffuse=[0.3, 0.3, 0.35],    # piedra oscura
+    spec=8,
+    ks=0.05,
+    matType=OPAQUE
+)
+
+water_material = Material(
+    diffuse=[0.8, 0.9, 1.0],     # agua azulada
+    spec=64,
+    ks=0.0,
+    ior=1.33,                    # índice del agua
+    matType=TRANSPARENT
+)
+
+# Material para vitrina (cristal con alta transparencia)
+display_glass = Material(
+    diffuse=[1.0, 1.0, 1.0],     # completamente transparente
+    spec=128,
+    ks=0.0,
+    ior=1.51,                    # vidrio común
+    matType=TRANSPARENT
+)
+
+# Materiales metálicos adicionales
+copper_aged = Material(
+    diffuse=[0.5, 0.3, 0.2],     # cobre envejecido
+    spec=64,
+    ks=0.7,
+    matType=REFLECTIVE
+)
+
+steel_brushed = Material(
+    diffuse=[0.6, 0.6, 0.65],    # acero cepillado
+    spec=96,
+    ks=0.8,
+    matType=REFLECTIVE
+)
+
+# Material púrpura/gris para toro
+torus_purple = Material(
+    diffuse=[0.5, 0.4, 0.6],     # púrpura grisáceo
+    spec=64,
+    ks=0.6,
+    matType=REFLECTIVE
 )
 
 

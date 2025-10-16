@@ -7,7 +7,7 @@ from figures import *
 from lights import *
 from Material import *
 
-width = 720 
+width = 1080
 height = 720
 screen = pygame.display.set_mode((width, height), pygame.SCALED)
 clock = pygame.time.Clock()
@@ -15,7 +15,7 @@ clock = pygame.time.Clock()
 rend = Renderer(screen)
 
 # Cámara en mejor posición para composición estética
-rend.camera.set_position(0, 0.5, -6)
+rend.camera.set_position(0, 0.5, -6.5)
 
 # Environment Map para reflejos de montañas
 rend.envMap = BMPTexture('Fondo.bmp')

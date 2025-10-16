@@ -44,9 +44,20 @@ class BMPTexture(object):
                 self.pixels.reverse()
 
     def getColor(self, u, v):
-        if 0 <= u <= 1 and 0 <= v <= 1:
-            x = int(u * (self.width  - 1))
-            y = int((1.0 - v) * (self.height - 1))  # <- flip vertical
-            return self.pixels[y][x]
-        return None
+        # Asegurar que u y v estén en el rango [0,1] usando módulo para repetir la textura
+        u = u - int(u) if u >= 0 else 1 + (u - int(u))
+        v = v - int(v) if v >= 0 else 1 + (v - int(v))
+        
+        # Asegurar que estén exactamente en [0,1]
+        u = max(0.0, min(1.0, u))
+        v = max(0.0, min(1.0, v))
+        
+        x = int(u * (self.width  - 1))
+        y = int((1.0 - v) * (self.height - 1))  # <- flip vertical
+        
+        # Asegurar que los índices estén dentro de los límites
+        x = max(0, min(self.width - 1, x))
+        y = max(0, min(self.height - 1, y))
+        
+        return self.pixels[y][x]
 

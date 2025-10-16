@@ -35,7 +35,8 @@ class Material(object):
         
         if self.texture and intercept.texCoords:
             textureColor = self.texture.getColor(intercept.texCoords[0], intercept.texCoords[1])
-            finalColor = [finalColor[i]* textureColor[i] for i in range (3)]
+            if textureColor:  # Solo aplicar si se obtuvo un color válido
+                finalColor = [finalColor[i] * textureColor[i] for i in range(3)]
 
 
         for light in renderer.lights:

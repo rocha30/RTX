@@ -90,14 +90,37 @@ class Plane(Shapes):
             return None  
         
         P = np.add(orig, np.multiply(dir, t))
+        
+        # Calcular coordenadas de textura para el plano
+        # Usamos las coordenadas X y Z del punto de intersección
+        # y las mapeamos a coordenadas UV [0,1]
+        
+        # Para un plano horizontal (suelo), usar X y Z
+        if abs(self.normal[1]) > 0.9:  # Normal apunta mayormente hacia arriba/abajo
+            u = float(P[0] % 4.0) / 4.0  # Repetir textura cada 4 unidades en X
+            v = float(P[2] % 4.0) / 4.0  # Repetir textura cada 4 unidades en Z
+        else:
+            # Para planos verticales, usar diferentes coordenadas
+            u = float(P[0] % 4.0) / 4.0
+            v = float(P[1] % 4.0) / 4.0
+        
+        # Asegurar que las coordenadas estén en el rango [0,1] usando clamp manual
+        if u < 0.0:
+            u = 0.0
+        elif u > 1.0:
+            u = 1.0
             
+        if v < 0.0:
+            v = 0.0
+        elif v > 1.0:
+            v = 1.0
         
         return Intercept(point = P, 
                          normal = self.normal, 
                          distance = t, 
                          rayDirection = dir, 
                          obj = self, 
-                         texCoords = None)
+                         texCoords = [u, v])
     
 class Triangle(Shapes):
     def __init__(self, v0, v1, v2, material):
@@ -203,13 +226,47 @@ class AABB(Shapes):
                 normal[i] = 1
                 break
         
+        # Calcular coordenadas de textura basadas en la cara que intersecta
+        u, v = 0.0, 0.0
+        
+        # Determinar qué cara del AABB se intersectó y calcular UV apropiadas
+        if abs(normal[0]) > 0.5:  # Cara lateral (X)
+            # Evitar división por cero
+            if abs(self.max_point[2] - self.min_point[2]) > 1e-6:
+                u = float((P[2] - self.min_point[2]) / (self.max_point[2] - self.min_point[2]))
+            if abs(self.max_point[1] - self.min_point[1]) > 1e-6:
+                v = float((P[1] - self.min_point[1]) / (self.max_point[1] - self.min_point[1]))
+        elif abs(normal[1]) > 0.5:  # Cara superior/inferior (Y)
+            # Evitar división por cero
+            if abs(self.max_point[0] - self.min_point[0]) > 1e-6:
+                u = float((P[0] - self.min_point[0]) / (self.max_point[0] - self.min_point[0]))
+            if abs(self.max_point[2] - self.min_point[2]) > 1e-6:
+                v = float((P[2] - self.min_point[2]) / (self.max_point[2] - self.min_point[2]))
+        else:  # Cara frontal/trasera (Z)
+            # Evitar división por cero
+            if abs(self.max_point[0] - self.min_point[0]) > 1e-6:
+                u = float((P[0] - self.min_point[0]) / (self.max_point[0] - self.min_point[0]))
+            if abs(self.max_point[1] - self.min_point[1]) > 1e-6:
+                v = float((P[1] - self.min_point[1]) / (self.max_point[1] - self.min_point[1]))
+        
+        # Asegurar que las coordenadas estén en el rango [0,1] usando clamp manual
+        if u < 0.0:
+            u = 0.0
+        elif u > 1.0:
+            u = 1.0
+            
+        if v < 0.0:
+            v = 0.0
+        elif v > 1.0:
+            v = 1.0
+        
         return Intercept(
             point=P,
             normal=normal,
             distance=t,
             rayDirection=dir,
             obj=self,
-            texCoords=None  
+            texCoords=[u, v]  
         )
         
 class Disk(Plane):

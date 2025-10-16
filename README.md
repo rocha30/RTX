@@ -1,8 +1,29 @@
 # RTX - Python Ray Tracer
 
-Un motor de ray tracing implementado en Python usando Pygame, capaz de renderizar escenas 3D con geometrías primitivas, iluminación realista, reflexiones, refracciones y diferentes tipos de materiales.
+Un motor de ray tracing implementado en Python usando Pygame, capaz de renderizar escenas 3D con geometrías primitivas, iluminación realista, reflexiones, refracciones, diferentes tipos de materiales y **texturas BMP de alta calidad**.
 
-![Resultado del Laboratorio 8](RayTracer.png)
+![Render del Proyecto 2 con Texturas](RenderProyecto2.png)
+![Imagen de Referencia](Proyecto2.png)
+
+## 🆕 Proyecto 2: Sistema de Texturas BMP Implementado
+
+### Nuevas Características de Texturizado
+- **✅ Texturas BMP completas**: Implementación robusta para cargar y aplicar texturas .bmp
+- **✅ Coordenadas UV automáticas**: Cálculo inteligente de coordenadas de textura para todas las geometrías
+- **✅ Mapeo de texturas realista**: Arena, madera y environment mapping
+- **✅ Repetición de texturas**: Sistema de tiling para texturas que se repiten naturalmente
+- **✅ Manejo robusto de errores**: Conversión segura de tipos y manejo de casos extremos
+
+### Archivos de Textura Incluidos
+- `sand.bmp` - Textura de arena para el suelo del jardín zen
+- `wood.bmp` - Textura de madera para pedestales y mobiliario  
+- `Fondo.bmp` - Environment map para reflexiones de montañas
+
+### Geometrías con Soporte de Texturas
+- **Plane**: Coordenadas UV calculadas con repetición configurable (cada 4 unidades)
+- **AABB**: Coordenadas UV por cara con mapeo apropiado según la superficie
+- **Sphere**: Coordenadas esféricas UV para environment mapping
+- **Otros**: Sistema extensible para agregar texturas a cualquier geometría
 
 ## Características Implementadas
 
@@ -33,6 +54,14 @@ Un motor de ray tracing implementado en Python usando Pygame, capaz de renderiza
 - **Sombras Proyectadas**: Ray tracing para sombras realistas
 - **Reflexiones Recursivas**: Múltiples rebotes para materiales reflectivos
 - **Refracción Física**: Implementación de la Ley de Snell y efecto Fresnel
+
+### 🎨 Sistema de Texturas BMP (Proyecto 2)
+- **Carga de Texturas BMP**: Parser robusto que maneja formatos de 24 bits
+- **Coordenadas UV Automáticas**: Cálculo inteligente para cada tipo de geometría
+- **Mapeo por Cara**: AABB calcula UV diferentes según la superficie intersectada
+- **Repetición de Texturas**: Sistema de tiling configurable para patrones repetitivos
+- **Manejo de Bordes**: Clamp seguro y wrapping para coordenadas fuera de [0,1]
+- **Conversión de Tipos**: Manejo robusto de arrays numpy para evitar errores de dispatch
 
 ## Estructura del Proyecto
 
@@ -73,6 +102,18 @@ pip install pygame numpy
 
 ## Uso
 
+### Ejecución del Proyecto 2 con Texturas
+```bash
+python RayTracer.py
+```
+
+Este comando renderiza la escena del Proyecto 2 que incluye:
+- **Jardín zen texturizado** con arena real usando `sand.bmp`
+- **Pedestales de madera** con textura natural usando `wood.bmp`
+- **Environment mapping** con fondo de montañas usando `Fondo.bmp`
+- **3 Esferas zen** con materiales oscuros mate para contraste
+- **Iluminación múltiple** optimizada para mostrar detalles de texturas
+
 ### Ejecución del Laboratorio 8
 ```bash
 python RayTracer.py
@@ -93,6 +134,39 @@ Este comando renderiza la escena del Lab 8 que incluye:
 ### Personalización de Escena
 
 Puedes modificar la escena editando `RayTracer.py`:
+
+```python
+# Configuración de resolución (menor = más rápido, mayor = mejor calidad de texturas)
+width = 720
+height = 720  # Resolución recomendada para texturas nítidas
+
+# Agregar superficie con textura de arena
+sand_material = Material(
+    diffuse=[0.8, 0.75, 0.6],
+    spec=4,
+    ks=0.0,
+    texture=BMPTexture('sand.bmp'),
+    matType=OPAQUE
+)
+rend.scene.append(Plane(position=[0, -4, 0], normal=[0, 1, 0], material=sand_material))
+
+# Agregar objeto con textura de madera
+wood_material = Material(
+    diffuse=[0.6, 0.4, 0.2],
+    spec=0.2,
+    ks=0.1,
+    texture=BMPTexture('wood.bmp'),
+    matType=OPAQUE
+)
+rend.scene.append(AABB(min_point=[-1, -2, -3], max_point=[1, -1, -2], material=wood_material))
+
+# Environment map para reflexiones
+rend.envMap = BMPTexture('Fondo.bmp')
+```
+
+### Personalización Anterior (Lab 8)
+
+También puedes usar la configuración del Lab 8 sin texturas:
 
 ```python
 # Configuración de resolución (menor = más rápido)
@@ -148,6 +222,113 @@ rend.lights.append(PointLight(position=[-2, 2, -3], intensity=0.7))
 
 ### Materiales Transparentes
 - `clear_glass`: Vidrio transparente (IOR: 1.50)
+## Proyecto 2: Implementación Técnica de Texturas
+
+### Mejoras Implementadas
+
+#### 1. BMPTexture.py - Carga Robusta de Texturas
+```python
+class BMPTexture:
+    def getColor(self, u, v):
+        # Wrapping automático para repetición de texturas
+        u = u - int(u) if u >= 0 else 1 + (u - int(u))
+        v = v - int(v) if v >= 0 else 1 + (v - int(v))
+        
+        # Clamp seguro dentro de límites
+        u = max(0.0, min(1.0, u))
+        v = max(0.0, min(1.0, v))
+        
+        # Conversión segura de índices
+        x = max(0, min(self.width - 1, int(u * (self.width - 1))))
+        y = max(0, min(self.height - 1, int((1.0 - v) * (self.height - 1))))
+        
+        return self.pixels[y][x]
+```
+
+#### 2. figures.py - Coordenadas UV para Geometrías
+
+**Plane (Suelo texturizado):**
+```python
+def ray_intersect(self, orig, dir):
+    # ... cálculo de intersección ...
+    
+    # Coordenadas UV con repetición cada 4 unidades
+    if abs(self.normal[1]) > 0.9:  # Plano horizontal
+        u = float(P[0] % 4.0) / 4.0  # Repetir en X
+        v = float(P[2] % 4.0) / 4.0  # Repetir en Z
+    else:  # Plano vertical
+        u = float(P[0] % 4.0) / 4.0
+        v = float(P[1] % 4.0) / 4.0
+    
+    return Intercept(point=P, normal=self.normal, distance=t, 
+                    rayDirection=dir, obj=self, texCoords=[u, v])
+```
+
+**AABB (Cubos con textura por cara):**
+```python
+def ray_intersect(self, orig, dir):
+    # ... cálculo de intersección ...
+    
+    # UV diferentes según la cara intersectada
+    if abs(normal[0]) > 0.5:  # Cara lateral (X)
+        u = float((P[2] - self.min_point[2]) / (self.max_point[2] - self.min_point[2]))
+        v = float((P[1] - self.min_point[1]) / (self.max_point[1] - self.min_point[1]))
+    elif abs(normal[1]) > 0.5:  # Cara superior/inferior (Y)
+        u = float((P[0] - self.min_point[0]) / (self.max_point[0] - self.min_point[0]))
+        v = float((P[2] - self.min_point[2]) / (self.max_point[2] - self.min_point[2]))
+    else:  # Cara frontal/trasera (Z)
+        u = float((P[0] - self.min_point[0]) / (self.max_point[0] - self.min_point[0]))
+        v = float((P[1] - self.min_point[1]) / (self.max_point[1] - self.min_point[1]))
+    
+    # Clamp manual para evitar errores de numpy
+    u = max(0.0, min(1.0, u)) if abs(self.max_point[0] - self.min_point[0]) > 1e-6 else 0.0
+    v = max(0.0, min(1.0, v)) if abs(self.max_point[1] - self.min_point[1]) > 1e-6 else 0.0
+    
+    return Intercept(point=P, normal=normal, distance=t,
+                    rayDirection=dir, obj=self, texCoords=[u, v])
+```
+
+#### 3. Material.py - Aplicación de Texturas
+```python
+def GetSurfaceColor(self, intercept, renderer, recursion=0):
+    # ... iluminación base ...
+    
+    # Aplicar textura si está disponible
+    if self.texture and intercept.texCoords:
+        textureColor = self.texture.getColor(intercept.texCoords[0], intercept.texCoords[1])
+        if textureColor:  # Verificación de color válido
+            finalColor = [finalColor[i] * textureColor[i] for i in range(3)]
+    
+    # ... resto del cálculo de iluminación ...
+```
+
+### Problemas Resueltos
+
+#### Error de Tipos numpy
+**Problema:** `TypeError: 'float' object cannot be interpreted as an integer`
+**Solución:** Conversión explícita a `float()` antes de operaciones matemáticas
+
+#### División por Cero
+**Problema:** Coordenadas UV indefinidas en caras muy pequeñas
+**Solución:** Verificación de épsilon antes de división: `abs(denominator) > 1e-6`
+
+#### Coordenadas Fuera de Rango
+**Problema:** UV coordinates fuera de [0,1] causando errores
+**Solución:** Clamp manual y wrapping automático para repetición
+
+#### Texturas No Aparecían
+**Problema:** `texCoords=None` en geometrías
+**Solución:** Implementación de cálculo UV para `Plane` y `AABB`
+
+### Arquitectura de Texturas
+
+```
+Texture Pipeline:
+BMPTexture.py -> Material.py -> figures.py -> gl.py
+     ↓              ↓             ↓           ↓
+  Load BMP → Apply to Material → Calculate UV → Render Pixel
+```
+
 ## Laboratorio 8: Figuras Geométricas Avanzadas
 
 ### Objetivo Cumplido ✅
@@ -241,7 +422,25 @@ El programa genera dos tipos de salida:
 
 ## Rendimiento
 
-### Configuraciones Recomendadas
+### Configuraciones Recomendadas para Texturas (Proyecto 2)
+```python
+# Desarrollo rápido con texturas (30-60 segundos)
+width, height = 512, 512
+maxRecursionDepth = 2
+# Texturas visibles pero render rápido
+
+# Calidad media con texturas nítidas (1-2 minutos)
+width, height = 720, 720  # ⭐ RECOMENDADO para texturas
+maxRecursionDepth = 2
+# Balance perfecto: texturas nítidas y tiempo razonable
+
+# Render de alta calidad (3-5 minutos)  
+width, height = 1024, 1024
+maxRecursionDepth = 3
+# Máxima calidad de texturas para presentaciones
+```
+
+### Configuraciones Lab 8 (Sin texturas)
 ```python
 # Desarrollo rápido (Lab 8 - 10-30 segundos)
 width, height = 400, 300
@@ -316,7 +515,9 @@ Este proyecto del Lab 8 fue desarrollado con asistencia de IA (GitHub Copilot), 
 
 **Autor**: Mario Rocha  
 **Curso**: Gráficos por Computadora  
-**Laboratorio**: Lab 8 - Figuras Geométricas Avanzadas  
+**Proyectos**: 
+- Lab 8 - Figuras Geométricas Avanzadas
+- **Proyecto 2 - Sistema de Texturas BMP**  
 **Fecha**: Octubre 2025  
 **Desarrollo con IA**: GitHub Copilot (conversación documentada)
 
@@ -324,7 +525,8 @@ Este proyecto del Lab 8 fue desarrollado con asistencia de IA (GitHub Copilot), 
 - Python 3.13
 - Pygame 2.6.1  
 - NumPy para operaciones vectoriales y resolución de polinomios
-- Matemáticas avanzadas: ecuaciones cuárticas, intersección ray-surface, gradientes analíticos
+- **Texturas BMP**: Parser personalizado para formatos de 24 bits
+- Matemáticas avanzadas: ecuaciones cuárticas, intersección ray-surface, gradientes analíticos, coordenadas UV
 ## Limitaciones Conocidas
 
 - Resolución de ecuaciones cuárticas puede ser computacionalmente intensiva

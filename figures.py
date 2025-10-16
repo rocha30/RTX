@@ -936,6 +936,74 @@ class Pyramid(Shapes):
             texCoords=None
         )
 
-    
 
+class Ellipsoid(Shapes):
+    """Ellipsoid defined by center position and three semi-axes (a, b, c).
     
+    Constructor: Ellipsoid(position, semi_axes, material)
+    - position: center point [x, y, z]
+    - semi_axes: [a, b, c] where a=x-axis, b=y-axis, c=z-axis semi-axis lengths
+    """
+    def __init__(self, position, semi_axes, material):
+        super().__init__(position, material)
+        self.a, self.b, self.c = semi_axes
+        self.type = "Ellipsoid"
+        
+    def ray_intersect(self, orig, dir):
+        # Transform ray to ellipsoid space where it becomes a unit sphere
+        # Ellipsoid equation: (x/a)² + (y/b)² + (z/c)² = 1
+        
+        orig = np.array(orig, dtype=float)
+        dir = np.array(dir, dtype=float)
+        
+        # Translate origin to ellipsoid center
+        oc = orig - self.position
+        
+        # Scale by inverse of semi-axes
+        scaled_oc = oc / [self.a, self.b, self.c]
+        scaled_dir = dir / [self.a, self.b, self.c]
+        
+        # Now solve for unit sphere: |scaled_point|² = 1
+        # Quadratic equation: at² + bt + c = 0
+        a = np.dot(scaled_dir, scaled_dir)
+        b = 2.0 * np.dot(scaled_oc, scaled_dir)
+        c = np.dot(scaled_oc, scaled_oc) - 1.0
+        
+        discriminant = b * b - 4 * a * c
+        
+        if discriminant < 0:
+            return None
+            
+        sqrt_discriminant = np.sqrt(discriminant)
+        t1 = (-b - sqrt_discriminant) / (2 * a)
+        t2 = (-b + sqrt_discriminant) / (2 * a)
+        
+        # Choose nearest positive intersection
+        t = None
+        if t1 > 0.001:
+            t = t1
+        elif t2 > 0.001:
+            t = t2
+        else:
+            return None
+            
+        # Calculate intersection point and normal
+        point = orig + t * dir
+        
+        # Normal vector: gradient of ellipsoid equation at point
+        local_point = point - self.position
+        normal = np.array([
+            2 * local_point[0] / (self.a * self.a),
+            2 * local_point[1] / (self.b * self.b), 
+            2 * local_point[2] / (self.c * self.c)
+        ])
+        normal = normal / np.linalg.norm(normal)
+        
+        return Intercept(
+            point=point,
+            normal=normal,
+            distance=t,
+            rayDirection=dir,
+            obj=self,
+            texCoords=None
+        )

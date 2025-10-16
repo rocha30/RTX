@@ -2,6 +2,7 @@ import numpy as np
 from intercept import *
 from MathLib import *
 from refractionFunctions import *
+from BMPTexture import BMPTexture
 
 OPAQUE = 0
 REFLECTIVE = 1
@@ -38,7 +39,7 @@ class Material(object):
 
 
         for light in renderer.lights:
-               
+
             if light.lightType == "Directional":
                 lightDir = [-i for i in light.direction]
                 shadowIntercept = renderer.glCastRay(intercept.point, lightDir, intercept.obj)
@@ -54,10 +55,8 @@ class Material(object):
                         shadowIntercept = None
                     
             if shadowIntercept == None:
-                
                 specColor = [(specColor[i] + light.GetSpecularColor(intercept, renderer.camera.translation)[i]) for i in range(3)]
-                
-                if self.matType == OPAQUE or self.matType == EMISSIVE: 
+                if self.matType == OPAQUE:
                     lightColor = [(lightColor[i] + light.GetLightColor(intercept)[i]) for i in range(3)]
                     
         if self.matType == REFLECTIVE:
@@ -274,6 +273,7 @@ sand_texture = Material(
     diffuse=[0.8, 0.75, 0.6],    # arena
     spec=4,
     ks=0.0,
+    texture=BMPTexture('sand.bmp'),  # Usando la textura del environment map
     matType=OPAQUE
 )
 
@@ -322,6 +322,68 @@ torus_purple = Material(
     spec=64,
     ks=0.6,
     matType=REFLECTIVE
+)
+
+# Material de cristal puro sin reflejos (solo transparente)
+glass = Material(
+    diffuse=[1.0, 1.0, 1.0],     # completamente blanco
+    spec=0,                      # sin brillo especular
+    ks=0.0,                      # sin reflectividad
+    ior=1.001,                   # muy cerca del aire para evitar refracción visible
+    matType=TRANSPARENT          # transparente pero sin efectos visuales
+)
+
+# Material de vitrina más estable
+vitrina_glass = Material(
+    diffuse=[0.95, 0.98, 1.0],   # ligerísimo tinte azul (como vidrio real)
+    spec=32,                     # un poco de brillo
+    ks=0.1,                      # muy poca reflectividad
+    ior=1.1,                     # refracción mínima pero estable
+    matType=TRANSPARENT
+)
+
+# Material de vitrina con tinte azul visible
+vitrina_glass = Material(
+    diffuse=[0.85, 0.9, 0.95],  # Color azul muy claro pero visible
+    spec=0.2,   # Reflexión baja
+    ks=0.1,     # Componente especular bajo
+    matType=OPAQUE,  # Completamente opaco para probar
+    ior=1.0     # Sin refracción para simplificar
+)
+
+# Materiales adicionales para las figuras
+mirror = Material(
+    diffuse=[0.9, 0.9, 0.9],
+    spec=0.9,
+    ks=0.8,
+    matType=REFLECTIVE,
+    ior=1.0
+)
+
+metal = Material(
+    diffuse=[0.7, 0.7, 0.8],
+    spec=0.8,
+    ks=0.6,
+    matType=OPAQUE,
+    ior=1.0
+)
+
+red_plastic = Material(
+    diffuse=[0.8, 0.2, 0.2],
+    spec=0.4,
+    ks=0.3,
+    matType=OPAQUE,
+    ior=1.0
+)
+
+# Material de madera con textura para el pedestal
+wood_textured = Material(
+    diffuse=[0.6, 0.4, 0.2],    # Color base de madera
+    spec=0.2,                   # Menos reflexión para madera
+    ks=0.1,                     # Menos especular
+    texture=BMPTexture('wood.bmp'),  # Usando textura existente
+    matType=OPAQUE,
+    ior=1.0
 )
 
 

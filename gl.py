@@ -18,6 +18,10 @@ class Renderer ():
         self.scene = []
         self.lights = []
         self.background = None
+        
+        self.envMap = None
+        
+        self.maxRecursionDepth = 3
 
         
 
@@ -42,6 +46,8 @@ class Renderer ():
                                            [0, n/self.RightEdge,0, 0],
                                            [0,0, -(f+n)/(f-n), -(2*f*n)/ (f-n)],
                                            [0,0,-1,0]])
+    
+    
         
     def glClearColor(self, r,g,b):
 
@@ -64,6 +70,17 @@ class Renderer ():
 
         self.frameBuffer = [[color for y in range(self.height)]
                             for x in range(self.width)]
+        
+        
+    def glEnvMapColor(self, origin, direction):
+        if self.envMap:
+            #enviroment map 
+            x = (atan2(direction[2], direction[0]) / (2 * pi) + 0.5)
+            y = (acos(-direction[1]) / pi)
+            
+            return self.envMap.getColor(x , y)
+         
+        return self.clearColor
 
     def glPoint(self, x, y, color = None):
         # Dibuja un punto en la posición (x, y)
@@ -147,36 +164,39 @@ class Renderer ():
                 dir /= np.linalg.norm(dir)  # normalizar
 
                 hit = self.glCastRay(self.camera.translation, dir)
-
-                if hit:
-
+                
+                color = [0, 0, 0]
+                
+                if hit !=None: 
                     if hit.obj.material:
                         color = hit.obj.material.GetSurfaceColor(hit, self)
-                        self.glPoint(x, y, color)
+                else: 
+                    color = self.glEnvMapColor(self.camera.translation, dir)
 
-                # Actualizar pantalla cada 100 pixels para ver progreso
-                if total_pixels % 100 == 0:
-                    pygame.display.flip()
+                self.glPoint(x, y, color)
+                pygame.display.flip()
+                        
+                        
 
-        
+    def glCastRay(self, origin, direction, sceneObj=None, recursion=0):
 
-        # Pixel de prueba rojo
-        
+        if recursion >= self.maxRecursionDepth:
+            return None
 
-        pygame.display.flip()
-        
-
-    def glCastRay(self, origin, direction, sceneObj=None):
         depth = float('inf')
+        intercept = None
         hit = None
 
         for obj in self.scene:
             if obj != sceneObj:
                 intercept = obj.ray_intersect(origin, direction)
-                if intercept is not None and intercept.distance < depth:
-                    hit = intercept
-                    depth = intercept.distance
+                if intercept != None:
+                    if intercept.distance < depth:
+                        hit = intercept
+                        depth = intercept.distance
 
         return hit
+    
+   
     
     
